@@ -1,30 +1,28 @@
 package main
 
 import (
+	"flag"
 	"fmt"
-	"machine/state"
+	"machine/processor"
 	"os"
+)
+
+var (
+	execPath = flag.String("exec", "main", "path of the executable file")
 )
 
 func main() {
 
-	image, err := os.ReadFile("a.v")
+	flag.Parse()
+
+	exec, err := os.ReadFile(*execPath)
 	if err != nil {
 		fmt.Println(err.Error())
 		return
 	}
 
-	/*for i, b := range image {
-		fmt.Printf("%08b ", b)
+	state := processor.New(exec)
 
-		if (i+1)%8 == 0 {
-			fmt.Println()
-		}
-	}*/
-
-	//fmt.Println(len(image))
-
-	state := state.New(image)
 	err = state.Execute()
 	if err != nil {
 		fmt.Println(err.Error())

@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"machine/file"
 )
 
 var (
@@ -17,6 +18,7 @@ type Instruction struct {
 	kind   uint64
 	first  uint64
 	second uint64
+	offset uint64
 }
 
 type Processor struct {
@@ -31,9 +33,24 @@ type Processor struct {
 	memory []byte
 }
 
-func New(memory []byte) Processor {
+func New(exec file.File) Processor {
+
+	registers := make([]uint64, 16)
+
+	memory := make([]byte, 0)
+	memory = append(memory, exec.Image...)
+
+	bss := make([]byte, exec.BSS)
+	memory = append(memory, bss...)
+
+	registers[13] = uint64(len(memory))
+	registers[14] = uint64(len(memory))
+
+	stack := make([]byte, exec.Stack)
+	memory = append(memory, stack...)
+
 	return Processor{
-		registers: make([]uint64, 16),
+		registers: registers,
 		memory:    memory,
 	}
 }
@@ -50,13 +67,14 @@ func twosComplement(u uint64, n int) int64 {
 }
 
 func parseInstruction(instruction uint64) Instruction {
-	t := instruction >> 46
+	kind := instruction >> 46
 	code := instruction >> 40
 
 	var first uint64
 	var second uint64
+	var offset uint64
 
-	switch t {
+	switch kind {
 	case 0:
 		first = (instruction & 0x000000FC00000000) >> 34
 		second = (instruction & 0x00000003FFFFFFFF)
@@ -66,15 +84,17 @@ func parseInstruction(instruction uint64) Instruction {
 	case 2:
 		first = (instruction & 0x000000FC00000000) >> 34
 		second = (instruction & 0x00000003F0000000) >> 28
+		offset = (instruction & 0x000000000FFFFFFF)
 	case 3:
 		first = (instruction & 0x000000FFFFFFFFFF)
 	}
 
 	return Instruction{
 		code:   code & 0x3F,
-		kind:   t,
+		kind:   kind,
 		first:  first,
 		second: second,
+		offset: offset,
 	}
 }
 
@@ -196,7 +216,7 @@ func (self *Processor) Execute() error {
 			}
 		}
 
-		if i.code >= 15 && i.code <= 21 {
+		if i.code >= 34 && i.code <= 40 {
 			skip, err := self.jumpOperations(i)
 			if err != nil {
 				return wrapper(err)
@@ -207,7 +227,7 @@ func (self *Processor) Execute() error {
 			}
 		}
 
-		if i.code == 22 {
+		if i.code == 41 {
 			ret, err := self.handleInterrupt(i)
 			if err != nil {
 				return wrapper(err)
@@ -215,6 +235,13 @@ func (self *Processor) Execute() error {
 
 			if ret {
 				return nil
+			}
+		}
+
+		if i.code >= 42 && i.code <= 47 {
+			err := self.setOperations(i)
+			if err != nil {
+				return wrapper(err)
 			}
 		}
 

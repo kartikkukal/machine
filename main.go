@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"machine/file"
 	"machine/processor"
 	"os"
 )
@@ -15,7 +16,14 @@ func main() {
 
 	flag.Parse()
 
-	exec, err := os.ReadFile(*execPath)
+	bytes, err := os.ReadFile(*execPath)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+
+	parser := file.NewParser(bytes)
+	exec, err := parser.Parse()
 	if err != nil {
 		fmt.Println(err.Error())
 		return

@@ -28,7 +28,7 @@ func (self *Processor) moveOperations(i Instruction) error {
 				return wrapper(err)
 			}
 
-			err = self.setMemory(address, i.first>>4, value)
+			err = self.setMemory(address+i.offset, i.first>>4, value)
 			if err != nil {
 				return wrapper(err)
 			}
@@ -54,7 +54,7 @@ func (self *Processor) moveOperations(i Instruction) error {
 				return wrapper(err)
 			}
 
-			value, err = self.getMemory(address, i.first>>4)
+			value, err = self.getMemory(address+i.offset, i.first>>4)
 			if err != nil {
 				return wrapper(err)
 			}
@@ -96,6 +96,8 @@ func (self *Processor) bitwiseOperations(i Instruction) error {
 		return wrapper(err)
 	}
 
+	value_2 += i.offset
+
 	var result uint64
 
 	switch i.code {
@@ -134,6 +136,7 @@ func (self *Processor) arithmeticOperations(i Instruction) error {
 		if err != nil {
 			return wrapper(err)
 		}
+		value_2 += i.offset
 	}
 
 	switch i.code {
@@ -174,6 +177,7 @@ func (self *Processor) comparisonOperations(i Instruction) error {
 		if err != nil {
 			return wrapper(err)
 		}
+		value_2 += i.offset
 	}
 
 	self.zero = false
@@ -218,43 +222,43 @@ func (self *Processor) jumpOperations(i Instruction) (bool, error) {
 	}
 
 	switch i.code {
-	case 15:
+	case 34:
 		if !self.zero {
 			self.registers[15] += value
 			return true, nil
 		}
 
-	case 16:
+	case 35:
 		if self.negative {
 			self.registers[15] += value
 			return true, nil
 		}
 
-	case 17:
+	case 36:
 		if self.zero || self.negative {
 			self.registers[15] += value
 			return true, nil
 		}
 
-	case 18:
+	case 37:
 		if self.positive {
 			self.registers[15] += value
 			return true, nil
 		}
 
-	case 19:
+	case 38:
 		if self.zero || self.positive {
 			self.registers[15] += value
 			return true, nil
 		}
 
-	case 20:
+	case 39:
 		if self.zero {
 			self.registers[15] += value
 			return true, nil
 		}
 
-	case 21:
+	case 40:
 		self.registers[15] += value
 		return true, nil
 	}
@@ -287,10 +291,6 @@ func (self *Processor) handleInterrupt(i Instruction) (bool, error) {
 
 	wrapper := func(err error) error {
 		return fmt.Errorf("while handling interrupt: %w", err)
-	}
-
-	if i.code != 22 {
-		return false, nil
 	}
 
 	switch i.first {
@@ -330,7 +330,43 @@ func (self *Processor) handleInterrupt(i Instruction) (bool, error) {
 				fmt.Println()
 			}
 		}
+		fmt.Println()
 	}
 
 	return false, nil
+}
+
+func (self *Processor) setOperations(i Instruction) error {
+	if i.kind != 1 {
+		return nil
+	}
+
+	switch i.code {
+	case 42:
+		if self.zero {
+			self.setRegister(i.first, i.second)
+		}
+	case 43:
+		if !self.zero {
+			self.setRegister(i.first, i.second)
+		}
+	case 44:
+		if self.negative {
+			self.setRegister(i.first, i.second)
+		}
+	case 45:
+		if self.positive {
+			self.setRegister(i.first, i.second)
+		}
+	case 46:
+		if self.negative || self.zero {
+			self.setRegister(i.first, i.second)
+		}
+	case 47:
+		if self.positive || self.zero {
+			self.setRegister(i.first, i.second)
+		}
+	}
+
+	return nil
 }

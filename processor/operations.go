@@ -1,6 +1,9 @@
 package processor
 
-import "fmt"
+import (
+	"encoding/binary"
+	"fmt"
+)
 
 func (self *Processor) moveOperations(i Instruction) error {
 
@@ -331,6 +334,33 @@ func (self *Processor) handleInterrupt(i Instruction) (bool, error) {
 			}
 		}
 		fmt.Println()
+	case 5:
+		for name, label := range self.memoryMap {
+			start := label.Offset
+			end := label.Offset + label.Size
+
+			data := self.memory[start:end]
+
+			fmt.Printf("%v: ", name)
+
+			for _, b := range data {
+				fmt.Printf("%08b ", b)
+			}
+
+			size := len(data)
+
+			if size == 1 || size == 2 ||
+				size == 4 || size == 8 {
+				padded := make([]byte, 8-(size))
+				padded = append(padded, data...)
+
+				number := binary.BigEndian.Uint64(padded)
+
+				fmt.Printf("/ Decimal: %v", number)
+			}
+
+			fmt.Println()
+		}
 	}
 
 	return false, nil

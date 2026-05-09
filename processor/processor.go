@@ -21,6 +21,11 @@ type Instruction struct {
 	offset uint64
 }
 
+type Label struct {
+	Offset int
+	Size   int
+}
+
 type Processor struct {
 	registers []uint64
 
@@ -31,6 +36,8 @@ type Processor struct {
 	positive bool
 
 	memory []byte
+
+	memoryMap map[string]file.Label
 }
 
 func New(exec file.File) Processor {
@@ -49,10 +56,16 @@ func New(exec file.File) Processor {
 	stack := make([]byte, exec.Stack)
 	memory = append(memory, stack...)
 
-	return Processor{
+	processor := Processor{
 		registers: registers,
 		memory:    memory,
 	}
+
+	if exec.MemorySize > 0 {
+		processor.memoryMap = exec.MemoryMap
+	}
+
+	return processor
 }
 
 func twosComplement(u uint64, n int) int64 {

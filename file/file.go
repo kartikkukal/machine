@@ -1,7 +1,9 @@
 package file
 
 import (
+	"bytes"
 	"encoding/binary"
+	"encoding/gob"
 	"errors"
 )
 
@@ -10,10 +12,18 @@ var (
 	ErrUnexpectedEOF = errors.New("unexpected end of file")
 )
 
+type Label struct {
+	Offset int
+	Size   int
+}
+
 type File struct {
 	BSS   uint64
 	Stack uint64
 	Image []byte
+
+	MemorySize uint64
+	MemoryMap  map[string]Label
 }
 
 type Parser struct {
@@ -70,6 +80,36 @@ func (self *Parser) Parse() (File, error) {
 		return File{}, ErrUnexpectedEOF
 	}
 	file.Stack = stack
+
+	memorySize, ok := self.ReadUint64()
+	if !ok {
+		return File{}, ErrUnexpectedEOF
+	}
+	file.MemorySize = memorySize
+
+	if memorySize > 0 {
+		memoryMapBytes, ok := self.ReadBytes(int(memorySize))
+		if !ok {
+			return File{}, ErrUnexpectedEOF
+		}
+
+		var decoderBuffer bytes.Buffer
+		_, err := decoderBuffer.Write(memoryMapBytes)
+		if err != nil {
+			return File{}, err
+		}
+
+		decoder := gob.NewDecoder(&decoderBuffer)
+
+		var memoryMap map[string]Label
+
+		err = decoder.Decode(&memoryMap)
+		if err != nil {
+			return File{}, err
+		}
+
+		file.MemoryMap = memoryMap
+	}
 
 	file.Image = self.file[self.index:]
 

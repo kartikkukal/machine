@@ -1,3 +1,3 @@
 # Machine
 
-An user space emulator for "Voran" binary.
+A user space emulator for "Voran" binary.

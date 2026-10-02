@@ -69,12 +69,12 @@ func (self *Processor) moveOperations(i Instruction) error {
 		}
 
 	case 2:
-		value, err := self.getRegister(i.first)
+		value, err := self.getRegister(i.second)
 		if err != nil {
 			return wrapper(err)
 		}
 
-		err = self.setRegister(i.second, value)
+		err = self.setRegister(i.first, value+i.offset)
 		if err != nil {
 			return wrapper(err)
 		}

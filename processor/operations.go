@@ -2,7 +2,12 @@ package processor
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
+)
+
+var (
+	ErrInvalidParameters = errors.New("invalid parameters for instruction")
 )
 
 func (self *Processor) moveOperations(i Instruction) error {
@@ -225,43 +230,43 @@ func (self *Processor) jumpOperations(i Instruction) (bool, error) {
 	}
 
 	switch i.code {
-	case 34:
-		if !self.zero {
-			self.registers[15] += value
-			return true, nil
-		}
-
-	case 35:
-		if self.negative {
-			self.registers[15] += value
-			return true, nil
-		}
-
-	case 36:
-		if self.zero || self.negative {
-			self.registers[15] += value
-			return true, nil
-		}
-
-	case 37:
-		if self.positive {
-			self.registers[15] += value
-			return true, nil
-		}
-
-	case 38:
-		if self.zero || self.positive {
-			self.registers[15] += value
-			return true, nil
-		}
-
-	case 39:
+	case 30: // beq
 		if self.zero {
 			self.registers[15] += value
 			return true, nil
 		}
 
-	case 40:
+	case 31: // bne
+		if !self.zero {
+			self.registers[15] += value
+			return true, nil
+		}
+
+	case 32: // blt
+		if self.negative {
+			self.registers[15] += value
+			return true, nil
+		}
+
+	case 33: // ble
+		if self.zero || self.negative {
+			self.registers[15] += value
+			return true, nil
+		}
+
+	case 34: // bgt
+		if self.positive {
+			self.registers[15] += value
+			return true, nil
+		}
+
+	case 35: // bge
+		if self.zero || self.positive {
+			self.registers[15] += value
+			return true, nil
+		}
+
+	case 36: // jmp
 		self.registers[15] += value
 		return true, nil
 	}
@@ -290,10 +295,130 @@ func (self *Processor) interruptPrint(address uint64) {
 	fmt.Println(string(output))
 }
 
-func (self *Processor) handleInterrupt(i Instruction) (bool, error) {
+func (self *Processor) setOperations(i Instruction) error {
+	if i.kind != 1 {
+		return nil
+	}
+
+	switch i.code {
+	case 37: // seq
+		if self.zero {
+			self.setRegister(i.first, i.second)
+		}
+	case 38: // sne
+		if !self.zero {
+			self.setRegister(i.first, i.second)
+		}
+	case 39: // slt
+		if self.negative {
+			self.setRegister(i.first, i.second)
+		}
+	case 40: // sle
+		if self.negative || self.zero {
+			self.setRegister(i.first, i.second)
+		}
+	case 41: // sgt
+		if self.positive {
+			self.setRegister(i.first, i.second)
+		}
+	case 42: // sge
+		if self.positive || self.zero {
+			self.setRegister(i.first, i.second)
+		}
+	}
+
+	return nil
+}
+
+func (self *Processor) stackPush(register uint64) error {
+	value, err := self.getRegister(register)
+	if err != nil {
+		return err
+	}
+
+	err = self.setMemory(self.registers[14], register>>4, value)
+	if err != nil {
+		return err
+	}
+
+	self.registers[14] += 2 << ((register >> 4) - 1)
+	return nil
+}
+
+func (self *Processor) stackPop(register uint64) error {
+	self.registers[14] -= 2 << ((register >> 4) - 1)
+
+	value, err := self.getMemory(self.registers[14], register>>4)
+	if err != nil {
+		return err
+	}
+
+	return self.setRegister(register, value)
+}
+
+func (self *Processor) stackOperations(i Instruction) error {
 
 	wrapper := func(err error) error {
-		return fmt.Errorf("while handling interrupt: %w", err)
+		return fmt.Errorf("while performing stack operations: %w", err)
+	}
+
+	if i.kind != 1 {
+		return ErrInvalidParameters
+	}
+
+	switch i.code {
+	case 43:
+		err := self.stackPush(i.first)
+		if err != nil {
+			return wrapper(err)
+		}
+
+	case 44:
+		err := self.stackPop(i.first)
+		if err != nil {
+			return wrapper(err)
+		}
+	}
+
+	return nil
+}
+
+func (self *Processor) functionOperations(i Instruction) (bool, error) {
+
+	wrapper := func(err error) error {
+		return fmt.Errorf("while performing function operations: %w", err)
+	}
+
+	if i.kind != 3 {
+		return false, ErrInvalidParameters
+	}
+
+	switch i.code {
+	case 45:
+		err := self.stackPush(0x3F) // Hex code for 64-bit register 15
+		if err != nil {
+			return false, wrapper(err)
+		}
+
+		value := uint64(twosComplement(i.first, 40))
+		self.registers[15] += value
+
+	case 46:
+		err := self.stackPop(0x3F) // Hex code for 64-bit register 15
+		if err != nil {
+			return false, wrapper(err)
+		}
+
+		self.registers[15] += 6 // Correction for skipping call
+	}
+
+	return true, nil
+}
+
+func (self *Processor) handleSyscall(i Instruction) (bool, error) {
+
+	wrapper := func(err error) error {
+		return fmt.Errorf("while handling syscall: %w", err)
 	}
 
 	switch i.first {
@@ -364,39 +489,4 @@ func (self *Processor) handleInterrupt(i Instruction) (bool, error) {
 	}
 
 	return false, nil
-}
-
-func (self *Processor) setOperations(i Instruction) error {
-	if i.kind != 1 {
-		return nil
-	}
-
-	switch i.code {
-	case 42:
-		if self.zero {
-			self.setRegister(i.first, i.second)
-		}
-	case 43:
-		if !self.zero {
-			self.setRegister(i.first, i.second)
-		}
-	case 44:
-		if self.negative {
-			self.setRegister(i.first, i.second)
-		}
-	case 45:
-		if self.positive {
-			self.setRegister(i.first, i.second)
-		}
-	case 46:
-		if self.negative || self.zero {
-			self.setRegister(i.first, i.second)
-		}
-	case 47:
-		if self.positive || self.zero {
-			self.setRegister(i.first, i.second)
-		}
-	}
-
-	return nil
 }

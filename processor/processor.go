@@ -215,6 +215,8 @@ func (self *Processor) Execute() error {
 			}
 		}
 
+		// TODO: Shift instructions
+
 		if i.code >= 9 && i.code <= 13 {
 			err := self.arithmeticOperations(i)
 			if err != nil {
@@ -229,7 +231,9 @@ func (self *Processor) Execute() error {
 			}
 		}
 
-		if i.code >= 34 && i.code <= 40 {
+		// TODO: Signed, Conversion and Floating point instructions
+
+		if i.code >= 30 && i.code <= 36 {
 			skip, err := self.jumpOperations(i)
 			if err != nil {
 				return wrapper(err)
@@ -240,21 +244,39 @@ func (self *Processor) Execute() error {
 			}
 		}
 
-		if i.code == 41 {
-			ret, err := self.handleInterrupt(i)
+		if i.code >= 37 && i.code <= 42 {
+			err := self.setOperations(i)
+			if err != nil {
+				return wrapper(err)
+			}
+		}
+
+		if i.code == 43 || i.code == 44 {
+			err := self.stackOperations(i)
+			if err != nil {
+				return wrapper(err)
+			}
+		}
+
+		if i.code == 45 || i.code == 46 {
+			skip, err := self.functionOperations(i)
+			if err != nil {
+				return wrapper(err)
+			}
+
+			if skip {
+				continue
+			}
+		}
+
+		if i.code == 47 {
+			ret, err := self.handleSyscall(i)
 			if err != nil {
 				return wrapper(err)
 			}
 
 			if ret {
 				return nil
-			}
-		}
-
-		if i.code >= 42 && i.code <= 47 {
-			err := self.setOperations(i)
-			if err != nil {
-				return wrapper(err)
 			}
 		}
 
